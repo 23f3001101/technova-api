@@ -18,6 +18,15 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1"
 )
 
+# Correct argument order for each function
+ARGUMENT_ORDER = {
+    "get_ticket_status": ["ticket_id"],
+    "schedule_meeting": ["date", "time", "meeting_room"],
+    "get_expense_balance": ["employee_id"],
+    "calculate_performance_bonus": ["employee_id", "current_year"],
+    "report_office_issue": ["issue_code", "department"],
+}
+
 tools = [
     {
         "type": "function",
@@ -27,7 +36,7 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "ticket_id": {"type": "integer", "description": "The ticket ID number"}
+                    "ticket_id": {"type": "integer"}
                 },
                 "required": ["ticket_id"]
             }
@@ -41,9 +50,9 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "date": {"type": "string", "description": "Date in YYYY-MM-DD format"},
-                    "time": {"type": "string", "description": "Time in HH:MM format"},
-                    "meeting_room": {"type": "string", "description": "The meeting room name"}
+                    "date": {"type": "string"},
+                    "time": {"type": "string"},
+                    "meeting_room": {"type": "string"}
                 },
                 "required": ["date", "time", "meeting_room"]
             }
@@ -53,11 +62,11 @@ tools = [
         "type": "function",
         "function": {
             "name": "get_expense_balance",
-            "description": "Get the expense reimbursement balance for an employee",
+            "description": "Get expense reimbursement balance for an employee",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "employee_id": {"type": "integer", "description": "The employee ID number"}
+                    "employee_id": {"type": "integer"}
                 },
                 "required": ["employee_id"]
             }
@@ -71,8 +80,8 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "employee_id": {"type": "integer", "description": "The employee ID number"},
-                    "current_year": {"type": "integer", "description": "The year for bonus calculation"}
+                    "employee_id": {"type": "integer"},
+                    "current_year": {"type": "integer"}
                 },
                 "required": ["employee_id", "current_year"]
             }
@@ -82,12 +91,12 @@ tools = [
         "type": "function",
         "function": {
             "name": "report_office_issue",
-            "description": "Report an office issue with an issue code and department",
+            "description": "Report an office issue with issue code and department",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "issue_code": {"type": "integer", "description": "The issue code number"},
-                    "department": {"type": "string", "description": "The department name"}
+                    "issue_code": {"type": "integer"},
+                    "department": {"type": "string"}
                 },
                 "required": ["issue_code", "department"]
             }
@@ -109,9 +118,18 @@ async def execute(q: str):
         )
 
         tool_call = response.choices[0].message.tool_calls[0]
+        func_name = tool_call.function.name
+        raw_args = json.loads(tool_call.function.arguments)
+
+        # Re-order arguments to match function definition order
+        ordered_args = {}
+        for key in ARGUMENT_ORDER.get(func_name, raw_args.keys()):
+            if key in raw_args:
+                ordered_args[key] = raw_args[key]
+
         return {
-            "name": tool_call.function.name,
-            "arguments": tool_call.function.arguments
+            "name": func_name,
+            "arguments": json.dumps(ordered_args)
         }
 
     except Exception as e:
